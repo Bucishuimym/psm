@@ -1,0 +1,63 @@
+# Visual Studio / MSBuild
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.cache
+
+# 构建目录（本项目的输出和中间文件）
+/x64/
+/Win32/
+/Debug/
+/Release/
+/psm/x64/
+/psm/Win32/
+/psm/Debug/
+/psm/Release/
+/build/
+/out/
+/cmake-build-*/
+
+# 编译产物
+*.obj
+*.o
+*.pch
+*.ipch
+*.idb
+*.pdb
+*.ilk
+*.exp
+*.tlog
+*.lastbuildstate
+*.res
+*.log
+*.tmp
+
+# 链接器/调试器残留
+*.ncb
+*.aps
+*.clw
+*.sdf
+
+# CMake（以后如果改用 CMake）
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CMakeUserPresets.json
+
+# 密码管理器数据，包含账号和密码，禁止提交
+/data.json
+/data.json.*
+/data.json.bak
+/secrets.*
+
+# 系统文件
+Thumbs.db
+Desktop.ini
+.DS_Store
