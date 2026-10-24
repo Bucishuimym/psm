@@ -10,6 +10,9 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
+// 库目录由项目配置为 third_party/openssl/lib/VC/x64/MD
+#pragma comment(lib, "libcrypto.lib")
+
 namespace psm::crypto
 {
 namespace

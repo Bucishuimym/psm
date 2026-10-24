@@ -1,0 +1,6 @@
+# 第三方预编译库按二进制处理，避免换行符转换损坏文件
+*.dll binary
+*.lib binary
+
+# vendored 源码/头文件保持原样，不做换行符转换
+third_party/** -text
