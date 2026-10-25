@@ -21,7 +21,7 @@ std::string pwDataGroup::GetKey()const { return key; }
 std::string pwDataGroup::GetUrl()const { return url; }
 std::string pwDataGroup::GetEmail()const { return email; }
 std::string pwDataGroup::GetUpdated()const { return updated_at; }
-std::unordered_map<std::string, std::string> pwDataGroup::GetCustomCom()const { return custom_com; }
+const std::unordered_map<std::string, std::string>& pwDataGroup::GetCustomCom()const { return custom_com; }
 int pwDataGroup::GetUid()const { return uid; }
 
 void pwDataGroup::SetUsername(std::string _Username) { account = std::move(_Username); }
@@ -31,6 +31,7 @@ void pwDataGroup::SetEmail(std::string _email) { email = std::move(_email); }
 void pwDataGroup::SetUpdated(std::string _updated_at) { updated_at = std::move(_updated_at); }
 void pwDataGroup::SetCustomCom(std::unordered_map<std::string, std::string> _custom_com) { custom_com = std::move(_custom_com); }
 void pwDataGroup::SetUid(int _uid) { uid = std::move(_uid); }
+void pwDataGroup::addCustomField(const std::string& key, const std::string& value) { custom_com[key] = value; }
 
 nlohmann::json pwDataGroup::ToJson(){
 	nlohmann::json data;
