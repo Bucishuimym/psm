@@ -16,130 +16,166 @@
 using namespace std;
 using namespace nlohmann;
 
-void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool ascending = true) {
-	int len = pw_data.GetLength();
+void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool ascending) {
+    int len = pwData.GetLength();
 
-	if (len == 0) {
-		cerr << "no data.\n";
-		return;
-	}
+    if (len == 0) {
+        cerr << "no data.\n";
+        return;
+    }
 
-	if (opts.output_json) {
-		json j_arr = json::array();
-		for (int i = 1;i <= len;i++) {
-			j_arr.push_back(pwData.Get(i).ToJson());
-		}
-		cout << j_arr.dump(4) << endl;
-		return;
-	}
+    auto get_display_key = [&](const pwDataGroup& item) -> string {
+        if (!opts.show_pass) {
+            return item.GetKey();          // 不解密
+        }
+        string plain, err2;
+        psm::crypto::DecryptFromString(g_master_password, item.GetKey(), "psm-pw-v1", plain, err2);
+        if (!err2.empty()) {
+            return item.GetKey();          // 解密失败回退密文
+        }
+        return plain;
+        };
 
-	vector<pwDataGroup> sorted_data;
-	for (int i = 1;i <= len;i++) {	sorted_data.push_back(pwData.Get(i));}
-	if (opts.show_time) {
-		std::sort(sorted_data.begin(), sorted_data.end(), [ascending](const pwDataGroup& a, const pwDataGroup& b) {
-			string timeA = a.GetUpdated();
-			string timeB = b.GetUpdated();
+    if (opts.output_json) {
+        json j_arr = json::array();
+        for (int i = 1; i <= len; i++) {
+            j_arr.push_back(pwData.Get(i).ToJson());
+        }
+        cout << j_arr.dump(4) << endl;
+        return;
+    }
 
-			if (ascending) {
-				return timeA < timeB;//升序
-			}
-			else {
-				return timeA > timeB;//降序
-			}
-			});
-	}
-	if (opts.show_reverse) {
-		reverse(sorted_data.begin(), sorted_data.end());
-	}
+    //收集并排序
+    vector<pwDataGroup> sorted_data;
+    sorted_data.reserve(len);
+    for (int i = 1; i <= len; i++) {
+        sorted_data.push_back(pwData.Get(i));
+    }
 
-	//存表头
-	unordered_set<std::string>custom_key_set;
-	for (const auto& item : sorted_data) {
-		for (const auto& pair : item.GetCustomCom()) {
-			custom_key_set.insert(pair.first);
-		}
-	}
-	vector<string> head(custom_key_set.begin(), custom_key_set.end());
-	sort(head.begin(), head.end());
+    if (opts.show_time) {
+        std::sort(sorted_data.begin(), sorted_data.end(),
+            [ascending](const pwDataGroup& a, const pwDataGroup& b) {
+                string timeA = a.GetUpdated();
+                string timeB = b.GetUpdated();
+                return ascending ? (timeA < timeB) : (timeA > timeB);
+            });
+    }
+    if (opts.show_reverse) {
+        reverse(sorted_data.begin(), sorted_data.end());
+    }
 
-	vector<string> headers = { "account","url","key" };
-	if (opts.show_T) {headers.push_back("uptime");}
-	headers.push_back("ID");
-	for (const auto& key : head) {headers.push_back("[" + key + "]");}
+    //收集定义列
+    unordered_set<std::string> custom_key_set;
+    for (const auto& item : sorted_data) {
+        for (const auto& pair : item.GetCustomCom()) {
+            custom_key_set.insert(pair.first);
+        }
+    }
+    vector<string> custom_keys(custom_key_set.begin(), custom_key_set.end());
+    sort(custom_keys.begin(), custom_keys.end());
 
-	//宽度计算
-	vector<size_t> max_widths(headers.size(), 0);
-	for (size_t i = 0;i <headers.size();i++) {
-		max_widths[i] = headers[i].length();
-	}
-	for (const auto& item : sorted_data) {
-			max_widths[0] = max<size_t>(max_widths[0], item.GetAccount().length());
-			max_widths[1] = max<size_t>(max_widths[1], item.GetUrl().length());
+    //表头顺序
+    vector<string> headers;
+    headers.push_back("account");
+    headers.push_back("url");
+    headers.push_back("key");
+    for (const auto& key : custom_keys) {
+        headers.push_back("[" + key + "]");
+    }
+    if (opts.show_T) {
+        headers.push_back("uptime");
+    }
+    headers.push_back("ID");
 
-		string plain,err2;
-		string pass_str;
-		psm::crypto::DecryptFromString(g_master_password, item.GetKey(), "psm-pw-v1", plain, err2);
-		pass_str = opts.show_pass ? plain : item.GetKey();
-			max_widths[2] = max<size_t>(max_widths[2], pass_str.length());
+    // 列索引
+    const size_t CUSTOM_START = 3;                                  // 自定义列起始
+    const size_t UPTIME_IDX = CUSTOM_START + custom_keys.size();  // 若 show_T 则有效
+    const size_t ID_IDX = UPTIME_IDX + (opts.show_T ? 1 : 0);
 
-		int id_idx;
-		int custom_key_idx = 3;
-		auto custom_map = item.GetCustomCom();
-		for (int j = 0;j < head.size();j++) {
-			string val = "";
-			if (custom_map.count(head[j])) val = custom_map[head[j]];
-			max_widths[custom_key_idx + j] = max<size_t>(max_widths[custom_key_idx + j], val.length());
-			id_idx = custom_key_idx + j + 1;
-		}
-		if (opts.show_T) {
-			max_widths[id_idx] = max<size_t>(max_widths[id_idx], item.GetUpdated().length());
-			id_idx++;
-		}
-			max_widths[id_idx] = max<size_t>(max_widths[id_idx], to_string(item.GetUid()).length());
-			cout << endl;
-	}
+    vector<string> display_keys;
+    display_keys.reserve(sorted_data.size());
+    for (const auto& item : sorted_data) {
+        display_keys.push_back(get_display_key(item));
+    }
 
-	//打印数据
-	for (size_t i = 0;i < headers.size();i++) {
-		cout << left << setw(max_widths[i] + 2) << headers[i];
-	}
-	cout << "\n";
+    //宽度计算
+    vector<size_t> max_widths(headers.size(), 0);
+    for (size_t i = 0; i < headers.size(); i++) {
+        max_widths[i] = headers[i].length();
+    }
 
-	size_t total_len = 0;
-	for (size_t w : max_widths)total_len += (w + 2);
-	cout << string(total_len, '-') << endl;
+    for (size_t i = 0; i < sorted_data.size(); i++) {
+        const auto& item = sorted_data[i];
 
-	for (const auto& item : sorted_data) {
-		string plain, err2;
-		string pass_str;
-		psm::crypto::DecryptFromString(g_master_password, item.GetKey(), "psm-pw-v1", plain, err2);
-		if (opts.show_pass) {
-			pass_str = plain;
-		}
-		pass_str = item.GetKey();
-		std::cout << std::left
-			<< std::setw(max_widths[0] + 2) << (item.GetAccount().empty() ? "-" : item.GetAccount())
-			<< std::setw(max_widths[1] + 2) << (item.GetUrl().empty() ? "-" : item.GetUrl())
-			<< std::setw(max_widths[2] + 2) << pass_str;
+        // account
+        max_widths[0] = max<size_t>(max_widths[0], item.GetAccount().length());
+        // url
+        max_widths[1] = max<size_t>(max_widths[1], item.GetUrl().length());
+        // key（使用缓存的 display key）
+        max_widths[2] = max<size_t>(max_widths[2], display_keys[i].length());
 
-		int custom_set_idx = 3;
-		int id_idx;
-		auto custom_map = item.GetCustomCom();
-		for (size_t j = 0;j < head.size();j++) {
-			string val = "-";
-			if (custom_map.count(head[j])) {
-				val = custom_map[head[j]];
-				if (val.empty())
-					val = "-";
-			}
-			cout << setw(max_widths[custom_set_idx + j] + 2) << val;
-			id_idx = custom_set_idx + j;
-		}
-		if (opts.show_T) {
-			cout << setw(max_widths[id_idx] + 2) << (item.GetUpdated().empty() ? "-": item.GetUpdated());
-			id_idx++;
-		}
-		cout << setw(max_widths[id_idx] + 2) << item.GetUid();
-	}
-	cout << endl;
+        // 自定义列
+        auto custom_map = item.GetCustomCom();
+        for (size_t j = 0; j < custom_keys.size(); j++) {
+            string val;
+            auto it = custom_map.find(custom_keys[j]);
+            if (it != custom_map.end()) val = it->second;
+            max_widths[CUSTOM_START + j] = max<size_t>(max_widths[CUSTOM_START + j], val.length());
+        }
+
+        // uptime
+        if (opts.show_T) {
+            max_widths[UPTIME_IDX] = max<size_t>(max_widths[UPTIME_IDX], item.GetUpdated().length());
+        }
+
+        // ID
+        max_widths[ID_IDX] = max<size_t>(max_widths[ID_IDX], to_string(item.GetUid()).length());
+    }
+
+    // ---- 打印表头 ----
+    cout << left;
+    for (size_t i = 0; i < headers.size(); i++) {
+        cout << setw(max_widths[i] + 2) << headers[i];
+    }
+    cout << "\n";
+
+    size_t total_len = 0;
+    for (size_t w : max_widths) total_len += (w + 2);
+    cout << string(total_len, '-') << endl;
+
+    // ---- 打印数据 ----
+    for (size_t i = 0; i < sorted_data.size(); i++) {
+        const auto& item = sorted_data[i];
+
+        // account
+        cout << setw(max_widths[0] + 2)
+            << (item.GetAccount().empty() ? "-" : item.GetAccount());
+        // url
+        cout << setw(max_widths[1] + 2)
+            << (item.GetUrl().empty() ? "-" : item.GetUrl());
+        // key
+        cout << setw(max_widths[2] + 2) << display_keys[i];
+
+        // 自定义列
+        auto custom_map = item.GetCustomCom();
+        for (size_t j = 0; j < custom_keys.size(); j++) {
+            string val = "-";
+            auto it = custom_map.find(custom_keys[j]);
+            if (it != custom_map.end() && !it->second.empty()) {
+                val = it->second;
+            }
+            cout << setw(max_widths[CUSTOM_START + j] + 2) << val;
+        }
+
+        // uptime
+        if (opts.show_T) {
+            cout << setw(max_widths[UPTIME_IDX] + 2)
+                << (item.GetUpdated().empty() ? "-" : item.GetUpdated());
+        }
+
+        // ID
+        cout << setw(max_widths[ID_IDX] + 2) << item.GetUid();
+
+        cout << endl;   // 每行换行
+    }
 }

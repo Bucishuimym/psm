@@ -76,10 +76,11 @@ void GetTime() {
 
 string CountTime() {
     time_t now = time(nullptr);
-    tm* local = localtime(&now);
+    tm local{};
+    localtime_s(&local,&now);
 
     char buf[64];
-    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", local);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &local);
     return string(buf);
 }
 
@@ -107,7 +108,7 @@ std::string getInput(const std::string& prompt) {
     return input;
 }
 
-void ListDataTime(LinkedList<pwDataGroup>& newData, bool ascending = true) {
+void ListDataTime(LinkedList<pwDataGroup>& newData, bool ascending) {
     int len = newData.GetLength();
     if (len == 0) return;
 
@@ -191,7 +192,7 @@ void ListDataTime(LinkedList<pwDataGroup>& newData, bool ascending = true) {
     }
 }
 
-void ListDataNoTime(LinkedList<pwDataGroup>& newData, bool ascending = true) {
+void ListDataNoTime(LinkedList<pwDataGroup>& newData, bool ascending) {
     int len = newData.GetLength();
     if (len == 0) {
         std::cout << "No data.\n";
@@ -335,7 +336,7 @@ void addData(
     cout << endl;
 }
 
-LinkedList<pwDataGroup> sortLinkedTime(bool ascending = true) {
+LinkedList<pwDataGroup> sortLinkedTime(bool ascending) {
     int len = pw_data.GetLength();
     std::vector<pwDataGroup> newVec;
     for (int i = 1;i <= len;i++) {

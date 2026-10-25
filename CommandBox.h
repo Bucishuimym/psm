@@ -2,6 +2,10 @@
 #ifndef COMMANDBOX_H
 #define COMMANDBOX_H
 
+#include "ListH.h"
+#include "pwDataGroup.h"
+#include <iostream>
+
 struct ListBox {
 	bool show_T = false;                                                       //输出时间
 	bool show_time = false;                                                    //按时间排序

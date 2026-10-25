@@ -19,7 +19,7 @@
 #include "CLI11.hpp"
 
 const std::string DATA_FILE = "data.json";
-std::string g_master_password = "02230ma";                                     //psm启动密钥
+inline std::string g_master_password = "02230ma";                               //psm启动密钥
 
 void LoadData();                                                               //加载数据
 void SaveData();                                                               //保存数据
