@@ -11,6 +11,8 @@
 #include "CLI11.hpp"
 #include "json.hpp"
 #include "pwDataGroup.h"
+#include "psm.hpp"
+#include "CommandBox.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -93,6 +95,41 @@ bool RunCryptoSelfTest()
 int main(int argc, char** argv) {
 	
 	CLI::App app{ "Password mananger CLI" };
+	app.require_subcommand(1);
+	app.set_version_flag("--version", "psm 0.0.1");
+	int exitCode = 0;
+
+	ListBox opts;
+	auto* list = app.add_subcommand("list", "List the data.");
+	list->alias("ls");
+	list->add_flag("-T", opts.show_T, "Print time");
+	list->add_flag("-t,--time", opts.show_time, "Sort time");
+	list->add_flag("-r,--reverse", opts.show_reverse, "Print in reverse order.");
+	list->add_flag("-p,--pass", opts.show_pass, "Print plaintext.");
+	list->add_flag("-j,--json", opts.output_json, "Print json.");
+	list->callback([&] {
+		ListCommand(opts,pw_data);
+		});
+
+	/*std::string account;
+    std::string key;
+    std::string url;
+    std::string email;
+    std::string updated_at;
+    std::unordered_map<std::string, std::string> custom_com;
+    int uid;*/
+
+	std::string url,name,key,email;
+	std::vector<std::string> custom_sets;
+	auto* add = app.add_subcommand("add", "add data.");
+	add->add_option("-u,--username", name, "Enter username")->default_val("-");
+	add->add_option("--url", url, "Enter url")->required();
+	add->add_option("-k,--key", key, "Enter password.")->default_val("-");
+	add->add_option("-e,--email", email, "Enter email")->default_val("-");
+	add->add_option("-s,--set", custom_sets, "Custom parameters: key=value")
+		->expected(-1);
+
+
 
 	bool cryptoSelfTest = false;
 	app.add_flag("--crypto-selftest", cryptoSelfTest, "运行 AES-256-GCM 自测");
