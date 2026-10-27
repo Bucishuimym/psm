@@ -37,7 +37,7 @@ public:
     std::string GetUrl()const;
     std::string GetEmail()const;
     std::string GetUpdated()const;
-    std::unordered_map<std::string, std::string> GetCustomCom()const;
+    const std::unordered_map<std::string, std::string>& GetCustomCom()const;
     int GetUid()const;
 
     void SetUsername( std::string _Username);
@@ -47,12 +47,14 @@ public:
     void SetUpdated(std::string _updated_at);
     void SetCustomCom(std::unordered_map<std::string, std::string> _custom_com);
     void SetUid(int _uid);
+    void addCustomField(const std::string& key, const std::string& value);
 
     nlohmann::json ToJson();
     void FromJson(const nlohmann::json& data);
 
     friend std::ostream& operator<<(std::ostream& out, const pwDataGroup& data);
     friend bool operator==(const pwDataGroup& pw1, const pwDataGroup& pw2);
+    pwDataGroup& operator=(const pwDataGroup& item);
 };
 
 extern std::vector<pwDataGroup> pw_json;

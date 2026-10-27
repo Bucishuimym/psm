@@ -10,7 +10,7 @@
 #include "pwDataGroup.h"
 #include "ListH.h"
 
-pwDataGroup::pwDataGroup() :account(""), key(""), url(""),email(""),updated_at(""), custom_com(-1), uid(-1) {}
+pwDataGroup::pwDataGroup() :account(""), key(""), url(""),email(""),updated_at(""), custom_com(0), uid(0) {}
 pwDataGroup::pwDataGroup(std::string _Username, std::string _key, std::string _url,std::string _email,
 	std::string _updated_at, std::unordered_map<std::string, std::string> _custom_com, int _uid) :
 	account(_Username), key(_key), url(_url),email(_email), updated_at(_updated_at), custom_com(_custom_com), uid(_uid) { }
@@ -21,7 +21,7 @@ std::string pwDataGroup::GetKey()const { return key; }
 std::string pwDataGroup::GetUrl()const { return url; }
 std::string pwDataGroup::GetEmail()const { return email; }
 std::string pwDataGroup::GetUpdated()const { return updated_at; }
-std::unordered_map<std::string, std::string> pwDataGroup::GetCustomCom()const { return custom_com; }
+const std::unordered_map<std::string, std::string>& pwDataGroup::GetCustomCom()const { return custom_com; }
 int pwDataGroup::GetUid()const { return uid; }
 
 void pwDataGroup::SetUsername(std::string _Username) { account = std::move(_Username); }
@@ -31,6 +31,7 @@ void pwDataGroup::SetEmail(std::string _email) { email = std::move(_email); }
 void pwDataGroup::SetUpdated(std::string _updated_at) { updated_at = std::move(_updated_at); }
 void pwDataGroup::SetCustomCom(std::unordered_map<std::string, std::string> _custom_com) { custom_com = std::move(_custom_com); }
 void pwDataGroup::SetUid(int _uid) { uid = std::move(_uid); }
+void pwDataGroup::addCustomField(const std::string& key, const std::string& value) { custom_com[key] = value; }
 
 nlohmann::json pwDataGroup::ToJson(){
 	nlohmann::json data;
@@ -83,7 +84,7 @@ std::ostream& operator<<(std::ostream& out, const pwDataGroup& data) {
 		out << data.updated_at << "\t";
 	}
 
-	if (data.uid != -1) {
+	if (data.uid != 0) {
 		out << data.uid << "\t";
 	}
 	out << std::endl;
@@ -95,4 +96,17 @@ bool operator==(const pwDataGroup& pw1, const pwDataGroup& pw2) {
 		return true;
 	}
 	return false;
+}
+
+pwDataGroup& pwDataGroup::operator=(const pwDataGroup& item) {
+	if (this != &item) {
+		account = item.account;
+		key = item.key;
+		url = item.url;
+		email = item.email;
+		updated_at = item.updated_at;
+		custom_com = item.custom_com;
+		uid = item.uid;
+	}
+	return *this;
 }

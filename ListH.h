@@ -17,16 +17,18 @@ class LinkedList {
 public:
 	LinkedList();
 	LinkedList(const T arr[], int n);
-	~LinkedList();
-	void Insert(int i, const T& x);
-	void PushBack(const T& data);
-	void PrintLink();
-	T Delete(int i);
-	T Get(int i);
-	Node<T>* GetHand();
-	int Locate(const T& x);
-	int GetLength();
-	bool Empty();
+	~LinkedList();                                                             //析构函数
+	LinkedList<T>& operator=(const LinkedList<T>& other);                      //深拷贝重载函数
+	void Insert(int i, const T& x);                                            //按位置插入
+	void PushBack(const T& data);                                              //提交到尾部
+	void PrintLink();                                                          //循环打印
+	void Clear();                                                              //清空链表
+	T Delete(int i);                                                           //按位置删除
+	T Get(int i);                                                              //查找位置返回数据
+	Node<T>* GetHand();                                                        //返回第一个数据节点
+	int Locate(const T& x);                                                    //查找数据返回位置
+	int GetLength();                                                           //返回链表长度
+	bool Empty();                                                              //链表判空
 private:
 	Node<T>* first;
 	Node<T>* last;
@@ -66,6 +68,18 @@ LinkedList<T>::~LinkedList() {                                                 /
 
 	first = nullptr;
 	last = nullptr;
+}
+template <typename T>
+LinkedList<T>& LinkedList<T>::operator=(const LinkedList<T>& other) {
+	if (this != &other) {
+		Clear();
+		Node<T>* p = other.first->next;
+		while (p != nullptr) {
+			this->PushBack(p->data);
+			p = p->next;
+		}
+	}
+	return *this;
 }
 
 template <typename T>
@@ -206,5 +220,18 @@ bool LinkedList<T>::Empty() {                                                  /
 template <typename T>
 Node<T>* LinkedList<T>::GetHand() {                                            //返回第一个数据节点
 	return first->next;
+}
+
+template <typename T>
+void LinkedList<T>::Clear() {                                            
+	Node<T>* p = first->next;
+	while (p != nullptr) {
+		Node<T>* temp = p;
+		p = p->next;
+		delete p;
+	}
+	first->next = nullptr;
+	last = first;
+	length = 0;
 }
 #endif // !LISTH_H
