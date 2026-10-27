@@ -93,7 +93,7 @@ bool RunCryptoSelfTest()
 } // namespace
 
 int main(int argc, char** argv) {
-	
+	LoadData();
 	CLI::App app{ "Password mananger CLI" };
 	app.require_subcommand(1);
 	app.set_version_flag("--version", "psm 0.0.1");
@@ -103,21 +103,13 @@ int main(int argc, char** argv) {
 	auto* list = app.add_subcommand("list", "List the data.");
 	list->alias("ls");
 	list->add_flag("-T", opts.show_T, "Print time");
-	list->add_flag("-t,--time", opts.show_time, "Sort time");
 	list->add_flag("-r,--reverse", opts.show_reverse, "Print in reverse order.");
 	list->add_flag("-p,--pass", opts.show_pass, "Print plaintext.");
 	list->add_flag("-j,--json", opts.output_json, "Print json.");
+	list->add_option("-s,--sort", opts.show_sort, "Sort <name>");
 	list->callback([&] {
 		ListCommand(opts,pw_data);
 		});
-
-	/*std::string account;
-    std::string key;
-    std::string url;
-    std::string email;
-    std::string updated_at;
-    std::unordered_map<std::string, std::string> custom_com;
-    int uid;*/
 
 	std::string url,name,key,email;
 	std::vector<std::string> custom_sets;
@@ -128,8 +120,9 @@ int main(int argc, char** argv) {
 	add->add_option("-e,--email", email, "Enter email")->default_val("-");
 	add->add_option("-s,--set", custom_sets, "Custom parameters: key=value")
 		->expected(-1);
-
-
+	add->callback([&] {
+		addData(name, url, key, email, custom_sets);
+		});
 
 	bool cryptoSelfTest = false;
 	app.add_flag("--crypto-selftest", cryptoSelfTest, "运行 AES-256-GCM 自测");
@@ -139,6 +132,6 @@ int main(int argc, char** argv) {
 	if (cryptoSelfTest) {
 		return RunCryptoSelfTest() ? 0 : 1;
 	}
-
+	SaveData();
 	return 0;
 }

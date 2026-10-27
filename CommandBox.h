@@ -8,7 +8,7 @@
 
 struct ListBox {
 	bool show_T = false;                                                       //输出时间
-	bool show_time = false;                                                    //按时间排序
+	std::string show_sort = "";                                                //自定义排序（time）
 	bool show_reverse = false;                                                 //倒序输出
 	bool show_pass = false;                                                    //明文输出
 	bool output_json = false;                                                  //输出json

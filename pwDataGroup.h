@@ -54,6 +54,7 @@ public:
 
     friend std::ostream& operator<<(std::ostream& out, const pwDataGroup& data);
     friend bool operator==(const pwDataGroup& pw1, const pwDataGroup& pw2);
+    pwDataGroup& operator=(const pwDataGroup& item);
 };
 
 extern std::vector<pwDataGroup> pw_json;

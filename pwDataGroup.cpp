@@ -10,7 +10,7 @@
 #include "pwDataGroup.h"
 #include "ListH.h"
 
-pwDataGroup::pwDataGroup() :account(""), key(""), url(""),email(""),updated_at(""), custom_com(-1), uid(-1) {}
+pwDataGroup::pwDataGroup() :account(""), key(""), url(""),email(""),updated_at(""), custom_com(0), uid(0) {}
 pwDataGroup::pwDataGroup(std::string _Username, std::string _key, std::string _url,std::string _email,
 	std::string _updated_at, std::unordered_map<std::string, std::string> _custom_com, int _uid) :
 	account(_Username), key(_key), url(_url),email(_email), updated_at(_updated_at), custom_com(_custom_com), uid(_uid) { }
@@ -84,7 +84,7 @@ std::ostream& operator<<(std::ostream& out, const pwDataGroup& data) {
 		out << data.updated_at << "\t";
 	}
 
-	if (data.uid != -1) {
+	if (data.uid != 0) {
 		out << data.uid << "\t";
 	}
 	out << std::endl;
@@ -96,4 +96,17 @@ bool operator==(const pwDataGroup& pw1, const pwDataGroup& pw2) {
 		return true;
 	}
 	return false;
+}
+
+pwDataGroup& pwDataGroup::operator=(const pwDataGroup& item) {
+	if (this != &item) {
+		account = item.account;
+		key = item.key;
+		url = item.url;
+		email = item.email;
+		updated_at = item.updated_at;
+		custom_com = item.custom_com;
+		uid = item.uid;
+	}
+	return *this;
 }

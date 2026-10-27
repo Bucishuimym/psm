@@ -18,6 +18,7 @@ public:
 	LinkedList();
 	LinkedList(const T arr[], int n);
 	~LinkedList();                                                             //析构函数
+	LinkedList<T>& operator=(const LinkedList<T>& other);                      //深拷贝重载函数
 	void Insert(int i, const T& x);                                            //按位置插入
 	void PushBack(const T& data);                                              //提交到尾部
 	void PrintLink();                                                          //循环打印
@@ -67,6 +68,18 @@ LinkedList<T>::~LinkedList() {                                                 /
 
 	first = nullptr;
 	last = nullptr;
+}
+template <typename T>
+LinkedList<T>& LinkedList<T>::operator=(const LinkedList<T>& other) {
+	if (this != &other) {
+		Clear();
+		Node<T>* p = other.first->next;
+		while (p != nullptr) {
+			this->PushBack(p->data);
+			p = p->next;
+		}
+	}
+	return *this;
 }
 
 template <typename T>

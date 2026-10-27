@@ -41,7 +41,8 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         for (int i = 1; i <= len; i++) {
             j_arr.push_back(pwData.Get(i).ToJson());
         }
-        cout << j_arr.dump(4) << endl;
+
+        std::cout << j_arr.dump(4) << endl;
         return;
     }
 
@@ -52,7 +53,8 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         sorted_data.push_back(pwData.Get(i));
     }
 
-    if (opts.show_time) {
+
+    if (opts.show_sort == "time") {
         std::sort(sorted_data.begin(), sorted_data.end(),
             [ascending](const pwDataGroup& a, const pwDataGroup& b) {
                 string timeA = a.GetUpdated();
@@ -72,12 +74,13 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         }
     }
     vector<string> custom_keys(custom_key_set.begin(), custom_key_set.end());
-    sort(custom_keys.begin(), custom_keys.end());
+    std::sort(custom_keys.begin(), custom_keys.end());
 
     //表头顺序
     vector<string> headers;
     headers.push_back("account");
     headers.push_back("url");
+    headers.push_back("email");
     headers.push_back("key");
     for (const auto& key : custom_keys) {
         headers.push_back("[" + key + "]");
@@ -88,7 +91,7 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
     headers.push_back("ID");
 
     // 列索引
-    const size_t CUSTOM_START = 3;                                  // 自定义列起始
+    const size_t CUSTOM_START = 4;                                  // 自定义列起始
     const size_t UPTIME_IDX = CUSTOM_START + custom_keys.size();  // 若 show_T 则有效
     const size_t ID_IDX = UPTIME_IDX + (opts.show_T ? 1 : 0);
 
@@ -111,8 +114,12 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         max_widths[0] = max<size_t>(max_widths[0], item.GetAccount().length());
         // url
         max_widths[1] = max<size_t>(max_widths[1], item.GetUrl().length());
-        // key（使用缓存的 display key）
-        max_widths[2] = max<size_t>(max_widths[2], display_keys[i].length());
+
+        //email
+        max_widths[2] = max<size_t>(max_widths[2], item.GetEmail().length());
+
+        // key
+        max_widths[3] = max<size_t>(max_widths[3], display_keys[i].length());
 
         // 自定义列
         auto custom_map = item.GetCustomCom();
@@ -132,29 +139,35 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         max_widths[ID_IDX] = max<size_t>(max_widths[ID_IDX], to_string(item.GetUid()).length());
     }
 
-    // ---- 打印表头 ----
-    cout << left;
+    // 打印表头
+    std::cout << left;
     for (size_t i = 0; i < headers.size(); i++) {
-        cout << setw(max_widths[i] + 2) << headers[i];
+        std::cout << setw(max_widths[i] + 2) << headers[i];
     }
-    cout << "\n";
+    std::cout << "\n";
 
-    size_t total_len = 0;
+    /*size_t total_len = 0;
     for (size_t w : max_widths) total_len += (w + 2);
-    cout << string(total_len, '-') << endl;
+    std::cout << string(total_len, '-') << endl;*/
 
-    // ---- 打印数据 ----
+    //打印数据
     for (size_t i = 0; i < sorted_data.size(); i++) {
         const auto& item = sorted_data[i];
 
         // account
-        cout << setw(max_widths[0] + 2)
+        std::cout << setw(max_widths[0] + 2)
             << (item.GetAccount().empty() ? "-" : item.GetAccount());
+      
         // url
-        cout << setw(max_widths[1] + 2)
+        std::cout << setw(max_widths[1] + 2)
             << (item.GetUrl().empty() ? "-" : item.GetUrl());
+
+        //email
+        std::cout << setw(max_widths[2] + 2)
+            << (item.GetEmail().empty() ? "-" : item.GetEmail());
+
         // key
-        cout << setw(max_widths[2] + 2) << display_keys[i];
+        std::cout << setw(max_widths[3] + 2) << display_keys[i];
 
         // 自定义列
         auto custom_map = item.GetCustomCom();
@@ -164,18 +177,17 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
             if (it != custom_map.end() && !it->second.empty()) {
                 val = it->second;
             }
-            cout << setw(max_widths[CUSTOM_START + j] + 2) << val;
+            std::cout << setw(max_widths[CUSTOM_START + j] + 2) << val;
         }
-
         // uptime
         if (opts.show_T) {
-            cout << setw(max_widths[UPTIME_IDX] + 2)
+            std::cout << setw(max_widths[UPTIME_IDX] + 2)
                 << (item.GetUpdated().empty() ? "-" : item.GetUpdated());
         }
 
         // ID
-        cout << setw(max_widths[ID_IDX] + 2) << item.GetUid();
+        std::cout << setw(max_widths[ID_IDX] + 2) << item.GetUid();
 
-        cout << endl;   // 每行换行
+        std::cout << endl;   // 每行换行
     }
 }
