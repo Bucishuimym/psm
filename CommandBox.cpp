@@ -41,6 +41,7 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         for (int i = 1; i <= len; i++) {
             j_arr.push_back(pwData.Get(i).ToJson());
         }
+
         std::cout << j_arr.dump(4) << endl;
         return;
     }
@@ -51,6 +52,7 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
     for (int i = 1; i <= len; i++) {
         sorted_data.push_back(pwData.Get(i));
     }
+
 
     if (opts.show_sort == "time") {
         std::sort(sorted_data.begin(), sorted_data.end(),
@@ -114,10 +116,10 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         max_widths[1] = max<size_t>(max_widths[1], item.GetUrl().length());
 
         //email
-        max_widths[3] = max<size_t>(max_widths[2], item.GetEmail().length());
+        max_widths[2] = max<size_t>(max_widths[2], item.GetEmail().length());
 
         // key
-        max_widths[2] = max<size_t>(max_widths[3], display_keys[i].length());
+        max_widths[3] = max<size_t>(max_widths[3], display_keys[i].length());
 
         // 自定义列
         auto custom_map = item.GetCustomCom();
@@ -155,6 +157,7 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
         // account
         std::cout << setw(max_widths[0] + 2)
             << (item.GetAccount().empty() ? "-" : item.GetAccount());
+      
         // url
         std::cout << setw(max_widths[1] + 2)
             << (item.GetUrl().empty() ? "-" : item.GetUrl());
@@ -176,7 +179,6 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
             }
             std::cout << setw(max_widths[CUSTOM_START + j] + 2) << val;
         }
-
         // uptime
         if (opts.show_T) {
             std::cout << setw(max_widths[UPTIME_IDX] + 2)

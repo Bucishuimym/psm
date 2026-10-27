@@ -273,6 +273,87 @@ void ListDataNoTime(LinkedList<pwDataGroup>& newData, bool ascending) {
     }
 }
 
+void ListDataNoTime(LinkedList<pwDataGroup>& newData, bool ascending) {
+    int len = newData.GetLength();
+    if (len == 0) {
+        std::cout << "No data.\n";
+        return;
+    }
+
+    std::unordered_set<std::string> custom_keys_set;
+    for (int i = 1; i <= len; i++) {
+        for (const auto& pair : newData.Get(i).GetCustomCom()) {
+            custom_keys_set.insert(pair.first);
+        }
+    }
+    std::vector<std::string> dynamic_headers(custom_keys_set.begin(), custom_keys_set.end());
+    std::sort(dynamic_headers.begin(), dynamic_headers.end());
+
+    std::vector<std::string> headers = { "Username", "Url", "Key", "UID" };
+
+    for (const auto& key : dynamic_headers) {
+        headers.push_back("[" + key + "]");
+    }
+
+    std::vector<size_t> max_widths(headers.size(), 0);
+
+    // 算表头本身的宽度
+    for (size_t i = 0; i < headers.size(); i++) {
+        max_widths[i] = headers[i].length();
+    }
+
+    for (int i = 1; i <= len; i++) {
+        pwDataGroup item = newData.Get(i);
+
+        // 基础字段宽度 (注意：UID 的索引变成了 3)
+        max_widths[0] = std::max<size_t>(max_widths[0], item.GetAccount().length());
+        max_widths[1] = std::max<size_t>(max_widths[1], item.GetUrl().length());
+        max_widths[2] = std::max<size_t>(max_widths[2], item.GetKey().length());
+        max_widths[3] = std::max<size_t>(max_widths[3], std::to_string(item.GetUid()).length());
+
+        auto custom_map = item.GetCustomCom();
+        for (size_t j = 0; j < dynamic_headers.size(); j++) {
+            std::string val = "";
+            if (custom_map.find(dynamic_headers[j]) != custom_map.end()) {
+                val = custom_map[dynamic_headers[j]];
+            }
+            max_widths[4 + j] = std::max<size_t>(max_widths[4 + j], val.length());
+        }
+    }
+
+    for (size_t i = 0; i < headers.size(); i++) {
+        std::cout << std::left << std::setw(max_widths[i] + 2) << headers[i];
+    }
+    std::cout << "\n";
+
+    // 打印分割线
+    size_t total_len = 0;
+    for (size_t w : max_widths) total_len += (w + 2);
+    std::cout << std::string(total_len, '-') << "\n";
+
+    for (int i = 1; i <= len; i++) {
+        int index = ascending ? i : (len - i + 1); // 控制升降序
+        pwDataGroup item = newData.Get(index);
+
+        std::cout << std::left
+            << std::setw(max_widths[0] + 2) << (item.GetAccount().empty() ? "-" : item.GetAccount())
+            << std::setw(max_widths[1] + 2) << (item.GetUrl().empty() ? "-" : item.GetUrl())
+            << std::setw(max_widths[2] + 2) << (item.GetKey().empty() ? "-" : item.GetKey())
+            << std::setw(max_widths[3] + 2) << item.GetUid(); // UID 变到了这里
+
+        auto custom_map = item.GetCustomCom();
+        for (size_t j = 0; j < dynamic_headers.size(); j++) {
+            std::string val = "-";
+            if (custom_map.find(dynamic_headers[j]) != custom_map.end()) {
+                val = custom_map[dynamic_headers[j]];
+                if (val.empty()) val = "-";
+            }
+            std::cout << std::left << std::setw(max_widths[4 + j] + 2) << val;
+        }
+        std::cout << "\n";
+    }
+}
+
 int randomInt(int max) {
     static std::mt19937 gen(random_device{}());
     std::uniform_int_distribution<int> dist(0, max - 1);

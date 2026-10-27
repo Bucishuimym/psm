@@ -124,8 +124,6 @@ int main(int argc, char** argv) {
 		addData(name, url, key, email, custom_sets);
 		});
 
-
-
 	bool cryptoSelfTest = false;
 	app.add_flag("--crypto-selftest", cryptoSelfTest, "运行 AES-256-GCM 自测");
 
