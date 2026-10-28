@@ -210,17 +210,9 @@ void addData(
     const std::string& password,
     const std::string& email,
     const std::vector <std::string>& custom_sets) {
-    pwDataGroup newData;
-    int ID = uidCount();
-    string time = CountTime();
-    newData.SetUsername(username);
-    newData.SetUrl(url);
-    newData.SetEmail(email);
-    newData.SetUid(ID);
-    newData.SetUpdated(time);
 
+    std::string encrypted_base64;
     if (!password.empty()) {
-        std::string encrypted_base64;
         std::string error_msg;
         bool success = psm::crypto::EncryptToString(
             g_master_password,
@@ -230,27 +222,56 @@ void addData(
             error_msg
         );
 
-        if (success) {
-            newData.SetKey(encrypted_base64);
-        }
-        else {
+        if (!success) {
             std::cerr << "Encrpty error.\n\tplease check the startup key and try again.\n";
             return;
         }
     }
 
-    if (!custom_sets.empty())
-    {
-        for (const auto& cus_set : custom_sets) {
-            size_t pos = cus_set.find("=");
-            if (pos != string::npos) {
-                string k = cus_set.substr(0, pos);
-                string v = cus_set.substr(pos + 1);
-                newData.addCustomField(k, v);
+    for (int i = 1; i <= pw_data.GetLength(); i++) {
+        pwDataGroup& item = pw_data.GetRef(i);
+        if (item.GetUrl() == url && item.GetAccount() == username) {
+            if (!email.empty()) {
+                item.SetEmail(email);
             }
-            else {
-                cerr << "Warning: Parameter format error.\n";
+            if (!encrypted_base64.empty()) {
+                item.SetKey(encrypted_base64);
             }
+            item.SetUpdated(CountTime());
+
+            for (const auto& cus_set : custom_sets) {
+                size_t pos = cus_set.find("=");
+                if (pos != string::npos) {
+                    string k = cus_set.substr(0, pos);
+                    string v = cus_set.substr(pos + 1);
+                    item.addCustomField(k, v);
+                }
+                else {
+                    cerr << "Warning: Parameter format error.\n";
+                }
+            }
+            cout << "data update generated." << endl;
+            return;
+        }
+    }
+
+    pwDataGroup newData;
+    newData.SetUsername(username);
+    newData.SetUrl(url);
+    newData.SetEmail(email);
+    newData.SetKey(encrypted_base64);
+    newData.SetUid(uidCount());
+    newData.SetUpdated(CountTime());
+
+    for (const auto& cus_set : custom_sets) {
+        size_t pos = cus_set.find("=");
+        if (pos != string::npos) {
+            string k = cus_set.substr(0, pos);
+            string v = cus_set.substr(pos + 1);
+            newData.addCustomField(k, v);
+        }
+        else {
+            cerr << "Warning: Parameter format error.\n";
         }
     }
 

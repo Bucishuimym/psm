@@ -114,10 +114,10 @@ int main(int argc, char** argv) {
 	std::string url,name,key,email;
 	std::vector<std::string> custom_sets;
 	auto* add = app.add_subcommand("add", "add data.");
-	add->add_option("-u,--username", name, "Enter username")->default_val("-");
+	add->add_option("-u,--username", name, "Enter username");
 	add->add_option("--url", url, "Enter url")->required();
-	add->add_option("-k,--key", key, "Enter password.")->default_val("-");
-	add->add_option("-e,--email", email, "Enter email")->default_val("-");
+	add->add_option("-k,--key", key, "Enter password.");
+	add->add_option("-e,--email", email, "Enter email");
 	add->add_option("-s,--set", custom_sets, "Custom parameters: key=value")
 		->expected(-1);
 	add->callback([&] {
