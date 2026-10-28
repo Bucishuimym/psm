@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <string>
+#include <stdexcept>
 template <typename T>
 struct Node
 {
@@ -25,6 +26,7 @@ public:
 	void Clear();                                                              //清空链表
 	T Delete(int i);                                                           //按位置删除
 	T Get(int i);                                                              //查找位置返回数据
+	T& GetRef(int i);                                                          //返回数据引用，可原地修改
 	Node<T>* GetHand();                                                        //返回第一个数据节点
 	int Locate(const T& x);                                                    //查找数据返回位置
 	int GetLength();                                                           //返回链表长度
@@ -190,6 +192,22 @@ T LinkedList<T>::Get(int i) {                                                  /
 	int count = 1;
 
 	while (!Empty() && count < i) {
+		p = p->next;
+		count++;
+	}
+
+	return p->data;
+}
+
+template <typename T>
+T& LinkedList<T>::GetRef(int i) {                                              //返回数据引用
+	if (i <= 0 || i > length) {
+		throw std::out_of_range("LinkedList::GetRef: index out of range");
+	}
+	Node<T>* p = first->next;
+	int count = 1;
+
+	while (count < i) {
 		p = p->next;
 		count++;
 	}
