@@ -250,6 +250,7 @@ void addData(
                     cerr << "Warning: Parameter format error.\n";
                 }
             }
+            cout << "data update generated." << endl;
             return;
         }
     }
