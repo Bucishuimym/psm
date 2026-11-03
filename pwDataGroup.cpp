@@ -10,10 +10,10 @@
 #include "pwDataGroup.h"
 #include "ListH.h"
 
-pwDataGroup::pwDataGroup() :account(""), key(""), url(""),email(""),updated_at(""), custom_com(0), uid(0) {}
+pwDataGroup::pwDataGroup() :account(""), key(""), url(""),email(""),updated_at(""), custom_com(0) ,op(false),uid(0) {}
 pwDataGroup::pwDataGroup(std::string _Username, std::string _key, std::string _url,std::string _email,
-	std::string _updated_at, std::unordered_map<std::string, std::string> _custom_com, int _uid) :
-	account(_Username), key(_key), url(_url),email(_email), updated_at(_updated_at), custom_com(_custom_com), uid(_uid) { }
+	std::string _updated_at, std::unordered_map<std::string, std::string> _custom_com ,bool _op, int _uid) :
+	account(_Username), key(_key), url(_url),email(_email), updated_at(_updated_at), custom_com(_custom_com) ,op(_op),uid(_uid) { }
 pwDataGroup::~pwDataGroup() = default;
 
 std::string pwDataGroup::GetAccount()const { return account; }
@@ -22,6 +22,7 @@ std::string pwDataGroup::GetUrl()const { return url; }
 std::string pwDataGroup::GetEmail()const { return email; }
 std::string pwDataGroup::GetUpdated()const { return updated_at; }
 const std::unordered_map<std::string, std::string>& pwDataGroup::GetCustomCom()const { return custom_com; }
+bool pwDataGroup::GetOp()const { return op; }
 int pwDataGroup::GetUid()const { return uid; }
 
 void pwDataGroup::SetUsername(std::string _Username) { account = std::move(_Username); }
@@ -30,6 +31,7 @@ void pwDataGroup::SetUrl(std::string _url) { url = std::move(_url); }
 void pwDataGroup::SetEmail(std::string _email) { email = std::move(_email); }
 void pwDataGroup::SetUpdated(std::string _updated_at) { updated_at = std::move(_updated_at); }
 void pwDataGroup::SetCustomCom(std::unordered_map<std::string, std::string> _custom_com) { custom_com = std::move(_custom_com); }
+void pwDataGroup::SetOp(bool value) { op = value; }
 void pwDataGroup::SetUid(int _uid) { uid = std::move(_uid); }
 void pwDataGroup::addCustomField(const std::string& key, const std::string& value) { custom_com[key] = value; }
 
@@ -41,6 +43,7 @@ nlohmann::json pwDataGroup::ToJson(){
 	data["email"] = email;
 	data["updated_at"] = updated_at;
 	data["custom_com"] = custom_com;
+	data["op"] = op;
 	data["uid"] = uid;
 	return data;
 }
@@ -50,6 +53,7 @@ void pwDataGroup::FromJson(const nlohmann::json& data) {
 	url = data.value("url", "");
 	email = data.value("email", "");
 	updated_at = data.value("updated_at", "");
+	op = data.value("op", false);
 	uid = data.value("uid", 000);
 	if (data.contains("custom_com")) {
 		custom_com = data["custom_com"].get<std::unordered_map<std::string, std::string>>(); //模板类类型转换函数
@@ -106,6 +110,7 @@ pwDataGroup& pwDataGroup::operator=(const pwDataGroup& item) {
 		email = item.email;
 		updated_at = item.updated_at;
 		custom_com = item.custom_com;
+		op = item.op;
 		uid = item.uid;
 	}
 	return *this;

@@ -18,7 +18,7 @@ using namespace std;
 using namespace nlohmann;
 
 std::vector<pwDataGroup> pw_json;
-LinkedList<pwDataGroup> pw_data(nullptr, 0);
+linked::LinkedList<pwDataGroup> pw_data(nullptr, 0);
 
 namespace
 {
@@ -93,7 +93,7 @@ bool RunCryptoSelfTest()
 } // namespace
 
 int main(int argc, char** argv) {
-	LoadData();
+	LoadData(pw_data,DATA_FILE);
 	CLI::App app{ "Password mananger CLI" };
 	app.require_subcommand(1);
 	app.set_version_flag("--version", "psm 0.0.1");
@@ -112,8 +112,10 @@ int main(int argc, char** argv) {
 		});
 
 	std::string url,name,key,email;
+	bool op = false;
 	std::vector<std::string> custom_sets;
 	auto* add = app.add_subcommand("add", "add data.");
+	add->add_flag("-O,--op", op, "set protection variable.");
 	add->add_option("-u,--username", name, "Enter username");
 	add->add_option("--url", url, "Enter url")->required();
 	add->add_option("-k,--key", key, "Enter password.");
@@ -121,8 +123,20 @@ int main(int argc, char** argv) {
 	add->add_option("-s,--set", custom_sets, "Custom parameters: key=value")
 		->expected(-1);
 	add->callback([&] {
-		addData(name, url, key, email, custom_sets);
+		addData(name, url, key, email, custom_sets,op);
 		});
+
+	RemoveBox opts_rm;
+	auto* remove = app.add_subcommand("rm", "remove data.");
+	remove->add_option("-u,--id",opts_rm.rm_uid,"remove <id> data.");
+	remove->add_flag("-i", opts_rm.rm_info, "Interactive deletion.");
+	remove->add_flag("-f", opts_rm.rm_force, "remove protection variable.");
+	remove->add_flag("-v", opts_rm.rm_verbose, "show deletion process.");
+	remove->add_flag("-d", opts_rm.rm_emptyd, "password to remove empty data.");
+	remove->callback([&] {
+		RemoveCommand(opts_rm, pw_data);
+		});
+
 
 	bool cryptoSelfTest = false;
 	app.add_flag("--crypto-selftest", cryptoSelfTest, "运行 AES-256-GCM 自测");
@@ -132,6 +146,6 @@ int main(int argc, char** argv) {
 	if (cryptoSelfTest) {
 		return RunCryptoSelfTest() ? 0 : 1;
 	}
-	SaveData();
+	SaveData(pw_data,DATA_FILE);
 	return 0;
 }

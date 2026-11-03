@@ -16,7 +16,7 @@
 using namespace std;
 using namespace nlohmann;
 
-void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool ascending) {
+void ListCommand(const ListBox& opts, linked::LinkedList<pwDataGroup>& pwData, bool ascending) {
     int len = pwData.GetLength();
 
     if (len == 0) {
@@ -78,15 +78,15 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
 
     //表头顺序
     vector<string> headers;
-    headers.push_back("account");
-    headers.push_back("url");
-    headers.push_back("email");
-    headers.push_back("key");
+    headers.push_back("ACCOUNT");
+    headers.push_back("URL");
+    headers.push_back("EMAIL");
+    headers.push_back("KEY");
     for (const auto& key : custom_keys) {
         headers.push_back("[" + key + "]");
     }
     if (opts.show_T) {
-        headers.push_back("uptime");
+        headers.push_back("UPTIME");
     }
     headers.push_back("ID");
 
@@ -146,10 +146,6 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
     }
     std::cout << "\n";
 
-    /*size_t total_len = 0;
-    for (size_t w : max_widths) total_len += (w + 2);
-    std::cout << string(total_len, '-') << endl;*/
-
     //打印数据
     for (size_t i = 0; i < sorted_data.size(); i++) {
         const auto& item = sorted_data[i];
@@ -190,4 +186,110 @@ void ListCommand(const ListBox& opts, LinkedList<pwDataGroup>& pwData, bool asce
 
         std::cout << endl;   // 每行换行
     }
+}
+
+
+void RemoveCommand(const RemoveBox& opts, linked::LinkedList<pwDataGroup>& pwdata) {   //删除数据
+    const int len = pwdata.GetLength();
+    if (len == 0) {
+        std::cerr << "no data.\n";
+        return;
+    }
+
+    std::vector<int> targets;
+    if (opts.rm_uid != 0) {
+        for (int i = 1; i <= len; i++) {
+            if (pwdata.GetRef(i).GetUid() == opts.rm_uid) {
+                targets.push_back(i);
+            }
+        }
+        if (targets.empty()) {
+            std::cerr << "no data with id " << opts.rm_uid << ".\n";
+            return;
+        }
+        if (targets.size() > 1) {
+            std::cerr << "warning: id " << opts.rm_uid
+                << " matched " << targets.size() << " records.\n";
+        }
+    }
+    else if (opts.rm_emptyd) {
+        for (int i = 1; i <= len; i++) {
+            if (pwdata.GetRef(i).GetKey().empty()) {
+                targets.push_back(i);
+            }
+        }
+        if (targets.empty()) {
+            std::cout << "no data without password.\n";
+            return;
+        }
+    }
+    else {
+        std::cerr << "nothing to remove: use --id <uid> or -d.\n";
+        return;
+    }
+
+    //从后往前删，避免下标前移；受保护记录没有 -f 时跳过
+    linked::LinkedList<pwDataGroup> removed;
+    int skipped = 0;
+
+    for (auto it = targets.rbegin(); it != targets.rend(); ++it) {
+        const int idx = *it;
+        const pwDataGroup& item = pwdata.GetRef(idx);
+
+        if (item.GetOp() && !opts.rm_force) {
+            skipped++;
+            std::cerr << "skip id " << item.GetUid()
+                << ": protected, use -f to force.\n";
+            continue;
+        }
+
+        if (opts.rm_verbose) {
+            std::cout << "remove: account=" << item.GetAccount()
+                << " url=" << item.GetUrl()
+                << " id=" << item.GetUid() << "\n";
+        }
+
+        if (opts.rm_info) {
+            std::cout << "remove id " << item.GetUid() << "? [y/N] " << std::flush;
+            std::string answer;
+            std::getline(std::cin, answer);
+            if (answer != "y" && answer != "Y") {
+                std::cout << "canceled.\n";
+                continue;
+            }
+        }
+
+        removed.PushBack(pwdata.Delete(idx));
+    }
+
+    if (removed.GetLength() == 0) {
+        std::cout << "nothing removed.\n";
+        return;
+    }
+
+    //保存主数据
+    SaveData(pwdata, DATA_FILE);
+
+    //追加到 JSON 回收站 remove.json
+    linked::LinkedList<pwDataGroup> trash;
+    {
+        std::ifstream probe(TRAN_DATA_FILE);
+        if (probe.good() && probe.peek() != std::char_traits<char>::eof()) {
+            probe.close();
+            LoadData(trash, TRAN_DATA_FILE);
+        }
+    }
+    for (int i = 1; i <= removed.GetLength(); i++) {
+        trash.PushBack(removed.Get(i));
+    }
+    SaveData(trash, TRAN_DATA_FILE);
+
+    //追加到文本日志
+    AddData(removed, LOG_FILE);
+
+    std::cout << "removed " << removed.GetLength() << " record(s)";
+    if (skipped > 0) {
+        std::cout << ", skipped " << skipped << " protected";
+    }
+    std::cout << ".\n";
 }

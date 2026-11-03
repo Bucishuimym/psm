@@ -25,11 +25,12 @@ private:
     std::string email;
     std::string updated_at;
     std::unordered_map<std::string, std::string> custom_com;
+    bool op;
     int uid;
 public:
     pwDataGroup();
     pwDataGroup(std::string _Username, std::string _key, std::string _url,std::string _email,
-        std::string _updated_at, std::unordered_map<std::string, std::string> _custom_com, int _uid);
+        std::string _updated_at, std::unordered_map<std::string, std::string> _custom_com, bool _op, int _uid);
     ~pwDataGroup();
 
     std::string GetAccount()const;
@@ -38,6 +39,7 @@ public:
     std::string GetEmail()const;
     std::string GetUpdated()const;
     const std::unordered_map<std::string, std::string>& GetCustomCom()const;
+    bool GetOp() const;
     int GetUid()const;
 
     void SetUsername( std::string _Username);
@@ -46,6 +48,7 @@ public:
     void SetEmail(std::string _email);
     void SetUpdated(std::string _updated_at);
     void SetCustomCom(std::unordered_map<std::string, std::string> _custom_com);
+    void SetOp(bool value = true);
     void SetUid(int _uid);
     void addCustomField(const std::string& key, const std::string& value);
 
@@ -58,6 +61,6 @@ public:
 };
 
 extern std::vector<pwDataGroup> pw_json;
-extern LinkedList<pwDataGroup> pw_data;
+extern linked::LinkedList<pwDataGroup> pw_data;
 
 #endif // !PWDATAGROUP_H
