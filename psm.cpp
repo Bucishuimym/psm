@@ -27,15 +27,21 @@
 using namespace std;
 using namespace nlohmann;
 
-void LoadData(){
-	std::ifstream in(DATA_FILE);
+void LoadData(linked::LinkedList<pwDataGroup>& trandata,const std::string& FILE){
+	std::ifstream in(FILE);
 	if (!in.is_open()) {
 		cerr << "File failed to open!\n";
 		return;
 	}
 
 	json json_data;
-	in >> json_data;
+	try {
+		in >> json_data;
+	}
+	catch (const std::exception& e) {
+		cerr << "bad json in " << FILE << ": " << e.what() << "\n";
+		return;
+	}
 	in.close();
 
 	pw_json.clear();
@@ -45,18 +51,250 @@ void LoadData(){
 		pw_json.push_back(data);
 	}
 
-	pw_data = LinkedList<pwDataGroup>(pw_json.data(), (int)pw_json.size());
+	trandata = linked::LinkedList<pwDataGroup>(pw_json.data(), (int)pw_json.size());
 }
 
-void SaveData() {
+namespace {
+
+std::string EscapeField(const std::string& text) {                             //转义字段
+    std::string out;
+    out.reserve(text.size());
+    for (char c : text) {
+        switch (c) {
+            case '\\': out += "\\\\"; break;
+            case '\t': out += "\\t"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            default: out += c; break;
+        }
+    }
+    return out;
+}
+
+std::string UnescapeField(const std::string& text) {                           //还原字段
+    std::string out;
+    out.reserve(text.size());
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '\\' && i + 1 < text.size()) {
+            char c = text[++i];
+            switch (c) {
+                case '\\': out += '\\'; break;
+                case 't': out += '\t'; break;
+                case 'n': out += '\n'; break;
+                case 'r': out += '\r'; break;
+                default: out += c; break;
+            }
+        }
+        else {
+            out += text[i];
+        }
+    }
+    return out;
+}
+
+std::string EscapeCustomPart(const std::string& text) {                        //转义自定义字段
+    std::string out;
+    out.reserve(text.size());
+    for (char c : text) {
+        switch (c) {
+            case '\\': out += "\\\\"; break;
+            case ';': out += "\\;"; break;
+            case '=': out += "\\="; break;
+            case '\t': out += "\\t"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            default: out += c; break;
+        }
+    }
+    return out;
+}
+
+std::string UnescapeCustomPart(const std::string& text) {                      //还原自定义字段
+    std::string out;
+    out.reserve(text.size());
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '\\' && i + 1 < text.size()) {
+            char c = text[++i];
+            switch (c) {
+                case '\\': out += '\\'; break;
+                case ';': out += ';'; break;
+                case '=': out += '='; break;
+                case 't': out += '\t'; break;
+                case 'n': out += '\n'; break;
+                case 'r': out += '\r'; break;
+                default: out += c; break;
+            }
+        }
+        else {
+            out += text[i];
+        }
+    }
+    return out;
+}
+
+std::string CustomToString(
+    const std::unordered_map<std::string, std::string>& custom) {              //自定义字段转字符串
+    std::vector<std::pair<std::string, std::string>> items(custom.begin(), custom.end());
+    std::sort(items.begin(), items.end(),
+        [](const std::pair<std::string, std::string>& a,
+           const std::pair<std::string, std::string>& b) {
+            return a.first < b.first;
+        });
+
+    std::string out;
+    bool first = true;
+    for (const auto& item : items) {
+        if (!first) {
+            out += ';';
+        }
+        first = false;
+        out += EscapeCustomPart(item.first);
+        out += '=';
+        out += EscapeCustomPart(item.second);
+    }
+    return out;
+}
+
+void ParseCustom(
+    const std::string& text,
+    std::unordered_map<std::string, std::string>& custom) {                    //字符串转自定义字段
+    std::string part;
+
+    auto flush = [&]() {
+        if (part.empty()) {
+            return;
+        }
+
+        size_t eq = std::string::npos;
+        for (size_t i = 0; i < part.size(); ++i) {
+            if (part[i] == '\\') {
+                ++i;                    //跳过被转义的字符
+                continue;
+            }
+            if (part[i] == '=') {
+                eq = i;
+                break;
+            }
+        }
+
+        if (eq != std::string::npos) {
+            custom[UnescapeCustomPart(part.substr(0, eq))] =
+                UnescapeCustomPart(part.substr(eq + 1));
+        }
+        part.clear();
+    };
+
+    for (size_t i = 0; i < text.size(); ++i) {
+        char c = text[i];
+        if (c == '\\' && i + 1 < text.size()) {
+            part += c;
+            part += text[++i];
+        }
+        else if (c == ';') {
+            flush();
+        }
+        else {
+            part += c;
+        }
+    }
+    flush();
+}
+
+} // namespace
+
+void AddData(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE) {     //追加记录到txt
+    bool has_content = false;
+    {
+        std::ifstream probe(FILE);
+        has_content = probe.good() && probe.peek() != std::char_traits<char>::eof();
+    }
+
+    std::ofstream out(FILE, std::ios::app);
+    if (!out.is_open()) {
+        cerr << "File failed to open!\n";
+        return;
+    }
+
+    if (!has_content) {
+        out << "#uid\top\taccount\turl\temail\tupdated_at\tkey\tcustom\n";
+    }
+
+    for (int i = 1; i <= trandata.GetLength(); i++) {
+        const pwDataGroup& data = trandata.GetRef(i);
+        out << data.GetUid() << '\t'
+            << (data.GetOp() ? 1 : 0) << '\t'
+            << EscapeField(data.GetAccount()) << '\t'
+            << EscapeField(data.GetUrl()) << '\t'
+            << EscapeField(data.GetEmail()) << '\t'
+            << EscapeField(data.GetUpdated()) << '\t'
+            << EscapeField(data.GetKey()) << '\t'
+            << CustomToString(data.GetCustomCom()) << '\n';
+    }
+}
+
+bool LoadTxt(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE) {     //从txt读取记录
+    std::ifstream in(FILE);
+    if (!in.is_open()) {
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+
+        std::vector<std::string> fields;
+        size_t start = 0;
+        while (true) {
+            size_t tab = line.find('\t', start);
+            fields.push_back(line.substr(start, tab == std::string::npos
+                                                    ? std::string::npos
+                                                    : tab - start));
+            if (tab == std::string::npos) {
+                break;
+            }
+            start = tab + 1;
+        }
+
+        if (fields.size() < 8) {
+            continue;
+        }
+
+        pwDataGroup data;
+        try {
+            data.SetUid(std::stoi(fields[0]));
+        }
+        catch (const std::exception&) {
+            continue;
+        }
+
+        data.SetOp(fields[1] == "1");
+        data.SetUsername(UnescapeField(fields[2]));
+        data.SetUrl(UnescapeField(fields[3]));
+        data.SetEmail(UnescapeField(fields[4]));
+        data.SetUpdated(UnescapeField(fields[5]));
+        data.SetKey(UnescapeField(fields[6]));
+
+        std::unordered_map<std::string, std::string> custom;
+        ParseCustom(fields[7], custom);
+        data.SetCustomCom(custom);
+
+        trandata.PushBack(data);
+    }
+
+    return true;
+}
+
+void SaveData(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE) {
     json json_data = json::array();
 
-    for (int i = 1;i <= pw_data.GetLength();i++) {
-        pwDataGroup curr = pw_data.Get(i);
+    for (int i = 1;i <= trandata.GetLength();i++) {
+        pwDataGroup curr = trandata.Get(i);
         json_data.push_back(curr.ToJson());
     }
 
-    std::ofstream out(DATA_FILE);
+    std::ofstream out(FILE);
     if (!out.is_open()) {
         cerr << "File failed to open!\n";
         return;
@@ -71,7 +309,7 @@ void GetTime() {
     std::tm tm;
     localtime_s(&tm,&time);
 
-	cout << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << " ";
+	std::cout << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << " ";
 }
 
 string CountTime() {
@@ -108,7 +346,7 @@ std::string getInput(const std::string& prompt) {
     return input;
 }
 
-void ListDataTime(LinkedList<pwDataGroup>& newData, bool ascending) {
+void ListDataTime(linked::LinkedList<pwDataGroup>& newData, bool ascending) {
     int len = newData.GetLength();
     if (len == 0) return;
 
@@ -209,7 +447,8 @@ void addData(
     const std::string& url,
     const std::string& password,
     const std::string& email,
-    const std::vector <std::string>& custom_sets) {
+    const std::vector <std::string>& custom_sets,
+    bool op) {
 
     std::string encrypted_base64;
     if (!password.empty()) {
@@ -237,6 +476,9 @@ void addData(
             if (!encrypted_base64.empty()) {
                 item.SetKey(encrypted_base64);
             }
+            if (op) {
+                item.SetOp(true);
+            }
             item.SetUpdated(CountTime());
 
             for (const auto& cus_set : custom_sets) {
@@ -262,6 +504,10 @@ void addData(
     newData.SetKey(encrypted_base64);
     newData.SetUid(uidCount());
     newData.SetUpdated(CountTime());
+    if (op) {
+        newData.SetOp();
+    }
+
 
     for (const auto& cus_set : custom_sets) {
         size_t pos = cus_set.find("=");
@@ -279,7 +525,7 @@ void addData(
     cout << endl;
 }
 
-LinkedList<pwDataGroup> sortLinkedTime(bool ascending) {
+linked::LinkedList<pwDataGroup> sortLinkedTime(bool ascending) {
     int len = pw_data.GetLength();
     std::vector<pwDataGroup> newVec;
     for (int i = 1;i <= len;i++) {
@@ -298,6 +544,6 @@ LinkedList<pwDataGroup> sortLinkedTime(bool ascending) {
         }
         });
        
-    LinkedList<pwDataGroup> newData(newVec.data(), (int)newVec.size());
+    linked::LinkedList<pwDataGroup> newData(newVec.data(), (int)newVec.size());
     return newData;
 }
