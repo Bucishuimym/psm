@@ -3,11 +3,15 @@
 #include <string>
 #include <cstdlib>
 #include <windows.h>
+#include <dpapi.h>
 #include <fstream>
+#include <filesystem>
 #include <sstream>
 #include <vector>
 #include <unordered_map>
 #include <conio.h>
+#include <io.h>
+#include <cwchar>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -16,6 +20,8 @@
 #include <random>
 #include <stdio.h>
 #include <algorithm>
+
+#pragma comment(lib, "crypt32.lib")
 
 #include "pwDataGroup.h"
 #include "ListH.h"
@@ -27,11 +33,10 @@
 using namespace std;
 using namespace nlohmann;
 
-void LoadData(linked::LinkedList<pwDataGroup>& trandata,const std::string& FILE){
+bool LoadData(linked::LinkedList<pwDataGroup>& trandata,const std::string& FILE){
 	std::ifstream in(FILE);
 	if (!in.is_open()) {
-		cerr << "File failed to open!\n";
-		return;
+		return true;   //文件不存在视为空数据
 	}
 
 	json json_data;
@@ -40,7 +45,7 @@ void LoadData(linked::LinkedList<pwDataGroup>& trandata,const std::string& FILE)
 	}
 	catch (const std::exception& e) {
 		cerr << "bad json in " << FILE << ": " << e.what() << "\n";
-		return;
+		return false;
 	}
 	in.close();
 
@@ -52,6 +57,7 @@ void LoadData(linked::LinkedList<pwDataGroup>& trandata,const std::string& FILE)
 	}
 
 	trandata = linked::LinkedList<pwDataGroup>(pw_json.data(), (int)pw_json.size());
+	return true;
 }
 
 namespace {
@@ -322,28 +328,61 @@ string CountTime() {
     return string(buf);
 }
 
+namespace {
+
+std::string WideToUtf8(const std::wstring& value) {
+    if (value.empty()) {
+        return std::string();
+    }
+
+    const int bytes = WideCharToMultiByte(
+        CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
+        nullptr, 0, nullptr, nullptr);
+    if (bytes <= 0) {
+        return std::string();
+    }
+
+    std::string result(bytes, '\0');
+    WideCharToMultiByte(
+        CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
+        result.data(), bytes, nullptr, nullptr);
+    return result;
+}
+
+} // namespace
+
 std::string getInput(const std::string& prompt) { 
     std::cout << prompt;
     std::string input;
-    int ch;
+
+    //stdin 被重定向时 _getch 读不到输入，改用 getline
+    if (!_isatty(_fileno(stdin))) {
+        if (!std::getline(std::cin, input)) {
+            input.clear();
+        }
+        std::cout << std::endl;
+        return input;
+    }
+
+    std::wstring wide;
     while (true) {
-        ch = _getch();
-        if (ch == '\r' || ch == '\n') {
+        wint_t ch = _getwch();
+        if (ch == L'\r' || ch == L'\n' || ch == WEOF) {
             std::cout << std::endl;
             break;
         }
         if (ch == 8) { // backspace
-            if (!input.empty()) {
-                input.pop_back();
+            if (!wide.empty()) {
+                wide.pop_back();
                 std::cout << "\b \b";
             }
         }
-        else if (ch >= 32 && ch <= 126) {
-            input.push_back((char)ch);
+        else if (ch >= 32) {
+            wide.push_back(static_cast<wchar_t>(ch));
             std::cout << '*';
         }
     }
-    return input;
+    return WideToUtf8(wide);
 }
 
 void ListDataTime(linked::LinkedList<pwDataGroup>& newData, bool ascending) {
@@ -547,3 +586,286 @@ linked::LinkedList<pwDataGroup> sortLinkedTime(bool ascending) {
     linked::LinkedList<pwDataGroup> newData(newVec.data(), (int)newVec.size());
     return newData;
 }
+
+namespace {
+
+constexpr const char* kMasterMagic = "#psm-master-v2";
+constexpr const char* kVerifierPlain = "psm-master-verifier";
+constexpr const char* kVerifierAad = "psm-verifier-v1";
+
+std::string g_master_verifier;   //Base64
+
+std::string MasterFilePath() {
+    std::filesystem::path p(g_data_file);
+    std::filesystem::path dir =
+        p.has_parent_path() ? p.parent_path() : std::filesystem::path(".");
+    return (dir / MASTER_FILE).string();
+}
+
+std::string TrimCR(std::string value) {
+    if (!value.empty() && value.back() == '\r') {
+        value.pop_back();
+    }
+    return value;
+}
+
+std::string ProtectForCurrentUser(const std::string& plain) {
+    DATA_BLOB in;
+    in.cbData = static_cast<DWORD>(plain.size());
+    in.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(plain.data()));
+
+    DATA_BLOB out{};
+    if (!CryptProtectData(&in, L"psm-master-password", nullptr, nullptr, nullptr,
+                          CRYPTPROTECT_UI_FORBIDDEN, &out)) {
+        return std::string();
+    }
+
+    std::string result(reinterpret_cast<char*>(out.pbData), out.cbData);
+    LocalFree(out.pbData);
+    return result;
+}
+
+std::string UnprotectForCurrentUser(const std::string& blob) {
+    if (blob.empty()) {
+        return std::string();
+    }
+
+    DATA_BLOB in;
+    in.cbData = static_cast<DWORD>(blob.size());
+    in.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(blob.data()));
+
+    DATA_BLOB out{};
+    if (!CryptUnprotectData(&in, nullptr, nullptr, nullptr, nullptr,
+                            CRYPTPROTECT_UI_FORBIDDEN, &out)) {
+        return std::string();
+    }
+
+    std::string result(reinterpret_cast<char*>(out.pbData), out.cbData);
+    LocalFree(out.pbData);
+    return result;
+}
+
+std::string MakeVerifier(const std::string& password) {
+    std::string verifier;
+    std::string error;
+    if (!psm::crypto::EncryptToString(
+            password, kVerifierPlain, kVerifierAad, verifier, error)) {
+        return std::string();
+    }
+    return verifier;
+}
+
+bool CheckVerifier(const std::string& password, const std::string& verifier) {
+    if (verifier.empty()) {
+        return false;
+    }
+
+    std::string plain;
+    std::string error;
+    if (!psm::crypto::DecryptFromString(
+            password, verifier, kVerifierAad, plain, error)) {
+        return false;
+    }
+    return plain == kVerifierPlain;
+}
+
+bool WriteMasterFile(const std::string& password) {
+    const std::string protectedPassword = ProtectForCurrentUser(password);
+    if (protectedPassword.empty()) {
+        g_master_error = "DPAPI failed to protect the master password";
+        return false;
+    }
+
+    const std::string verifier = MakeVerifier(password);
+    if (verifier.empty()) {
+        g_master_error = "failed to create the master password verifier";
+        return false;
+    }
+
+    const psm::crypto::Bytes protectedBytes(
+        protectedPassword.begin(), protectedPassword.end());
+    const std::string protectedBase64 =
+        psm::crypto::Base64Encode(protectedBytes);
+
+    const std::string path = MasterFilePath();
+    std::ofstream out(path, std::ios::trunc);
+    if (!out.is_open()) {
+        g_master_error = "cannot open " + path;
+        return false;
+    }
+    out << kMasterMagic << "\n"
+        << protectedBase64 << "\n"
+        << verifier << "\n";
+    out.close();
+    if (!out) {
+        g_master_error = "failed to write " + path;
+        return false;
+    }
+
+    g_master_verifier = verifier;
+    return true;
+}
+
+} // namespace
+
+bool ReadMasterpsm() {
+    g_master_error.clear();
+    g_master_verifier.clear();
+
+    const std::string path = MasterFilePath();
+    std::ifstream in(path);
+    if (!in.is_open()) {
+        return true;   //没有主密码使用环境变量或提示init
+    }
+
+    std::string first;
+    if (!std::getline(in, first)) {
+        std::cerr << path << " is empty; ignoring it.\n";
+        return true;
+    }
+    first = TrimCR(first);
+
+    if (first == kMasterMagic) {
+        std::string protectedBase64;
+        std::string verifier;
+        if (!std::getline(in, protectedBase64) ||
+            !std::getline(in, verifier)) {
+            g_master_error = "master password file is incomplete: " + path;
+            return false;
+        }
+        protectedBase64 = TrimCR(protectedBase64);
+        verifier = TrimCR(verifier);
+        in.close();
+
+        psm::crypto::Bytes raw;
+        std::string error;
+        if (!psm::crypto::Base64Decode(protectedBase64, raw, error)) {
+            g_master_error = "cannot decode " + path + ": " + error;
+            return false;
+        }
+
+        const std::string password = UnprotectForCurrentUser(
+            std::string(raw.begin(), raw.end()));
+        if (password.empty()) {
+            g_master_error = "cannot decrypt " + path + " with DPAPI";
+            return false;
+        }
+
+        if (!CheckVerifier(password, verifier)) {
+            g_master_error = "master password verifier check failed";
+            return false;
+        }
+
+        g_master_password = password;
+        g_master_verifier = verifier;
+        return true;
+    }
+
+    //旧版明文文件：读取第一行并自动升级为 DPAPI + verifier
+    in.close();
+    if (first.empty()) {
+        std::cerr << path << " is empty; ignoring it.\n";
+        return true;
+    }
+
+    g_master_password = first;
+    std::cerr << "warning: legacy plaintext " << path
+              << ", upgrading to DPAPI.\n";
+    if (!WriteMasterFile(g_master_password)) {
+        std::cerr << "warning: failed to upgrade " << path
+                  << ": " << g_master_error << "\n";
+        g_master_error.clear();
+    }
+    return true;
+}
+
+bool ApplyMasterPasswordOverride(const std::string& password) {
+    g_master_error.clear();
+    if (!g_master_verifier.empty() &&
+        !CheckVerifier(password, g_master_verifier)) {
+        g_master_error = "PSM_MASTER_PASSWORD does not match the verifier in "
+                         + MasterFilePath();
+        return false;
+    }
+    g_master_password = password;
+    return true;
+}
+
+bool initMasterpsm() {
+    if (g_master_password != "") {
+        cout << "Reinitialize existing PSM startup key in "
+             << MasterFilePath() << endl;
+    }
+
+    const std::string first = getInput("Enter startup key : ");
+    if (first.empty()) {
+        cerr << "master password must not be empty.\n";
+        return false;
+    }
+    const std::string second = getInput("Confirm startup key: ");
+    if (first != second) {
+        cerr << "passwords do not match.\n";
+        return false;
+    }
+
+    //先把所有 key 用旧密码解出来，再用新密码加密；全部成功后才写文件
+    const int len = pw_data.GetLength();
+    std::vector<bool> hasKey(len + 1, false);
+    std::vector<std::string> newKeys(len + 1);
+    int reencrypted = 0;
+
+    for (int i = 1; i <= len; i++) {
+        const pwDataGroup& item = pw_data.GetRef(i);
+        if (item.GetKey().empty()) {
+            continue;
+        }
+
+        std::string plain;
+        std::string error;
+        if (!psm::crypto::DecryptFromString(
+                g_master_password, item.GetKey(), "psm-pw-v1", plain, error)) {
+            cerr << "cannot decrypt entry uid=" << item.GetUid()
+                 << " with the current master password: " << error << "\n";
+            cerr << "master password was not changed.\n";
+            return false;
+        }
+
+        std::string encrypted;
+        if (!psm::crypto::EncryptToString(
+                first, plain, "psm-pw-v1", encrypted, error)) {
+            cerr << "cannot re-encrypt entry uid=" << item.GetUid()
+                 << ": " << error << "\n";
+            cerr << "master password was not changed.\n";
+            return false;
+        }
+
+        hasKey[i] = true;
+        newKeys[i] = encrypted;
+        reencrypted++;
+    }
+
+    if (!WriteMasterFile(first)) {
+        cerr << "master password was not changed: " << g_master_error << "\n";
+        return false;
+    }
+
+    for (int i = 1; i <= len; i++) {
+        if (hasKey[i]) {
+            pw_data.GetRef(i).SetKey(newKeys[i]);
+        }
+    }
+    g_master_password = first;
+    g_master_error.clear();
+
+    cout << "master password updated";
+    if (reencrypted > 0) {
+        cout << ", " << reencrypted << " entries re-encrypted";
+    }
+    cout << ".\n";
+    return true;
+}
+
+bool startup() {
+    return g_master_password == "";
+}
+

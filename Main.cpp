@@ -5,6 +5,7 @@
 #include <cmath>
 #include <windows.h>
 #include <unordered_map>
+#include <fstream>
 
 #include "AesGcm.h"
 #include "ListH.h"
@@ -13,6 +14,8 @@
 #include "pwDataGroup.h"
 #include "psm.hpp"
 #include "CommandBox.h"
+#include "McpServer.h"
+#include "termcolor.hpp"
 
 using namespace std;
 using namespace nlohmann;
@@ -92,12 +95,95 @@ bool RunCryptoSelfTest()
 }
 } // namespace
 
+namespace {
+
+std::string GetEnvUtf8(const wchar_t* name) {
+	const DWORD size = GetEnvironmentVariableW(name, nullptr, 0);
+	if (size == 0) {
+		return std::string();
+	}
+
+	std::wstring value(size, L'\0');
+	const DWORD written = GetEnvironmentVariableW(name, value.data(), size);
+	if (written == 0 || written >= size) {
+		return std::string();
+	}
+	value.resize(written);
+
+	const int bytes = WideCharToMultiByte(
+		CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
+		nullptr, 0, nullptr, nullptr);
+	if (bytes <= 0) {
+		return std::string();
+	}
+
+	std::string result(bytes, '\0');
+	WideCharToMultiByte(
+		CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
+		result.data(), bytes, nullptr, nullptr);
+	return result;
+}
+
+} // namespace
+
 int main(int argc, char** argv) {
-	LoadData(pw_data,DATA_FILE);
+
+	std::string dataFile = DATA_FILE;
+	char* buffer = nullptr;
+	size_t size = 0;
+
+	if (_dupenv_s(&buffer, &size, "PSM_DATA_FILE") == 0 && buffer != nullptr) {
+		dataFile = buffer;
+		free(buffer);
+		buffer = nullptr;
+	}
+	else if (_dupenv_s(&buffer, &size, "PW_DATA_FILE") == 0 && buffer != nullptr) {
+		dataFile = buffer;
+		free(buffer);
+		buffer = nullptr;
+	}
+
+	g_data_file = dataFile;
+	ReadMasterpsm();
+
+	const std::string envPassword = GetEnvUtf8(L"PSM_MASTER_PASSWORD");
+	if (!envPassword.empty()) {
+		ApplyMasterPasswordOverride(envPassword);
+	}
+
+	const bool dataLoaded = LoadData(pw_data, dataFile);
 	CLI::App app{ "Password mananger CLI" };
 	app.require_subcommand(1);
 	app.set_version_flag("--version", "psm 0.0.1");
 	int exitCode = 0;
+
+	auto requireData = [&]() -> bool {
+		if (!dataLoaded) {
+			cerr << termcolor::red
+				<< "fatal: data file could not be parsed; refusing to continue.\n"
+				<< termcolor::reset;
+			exitCode = 1;
+			return false;
+		}
+		return true;
+	};
+
+	auto requireMaster = [&]() -> bool {
+		if (!g_master_error.empty()) {
+			cerr << termcolor::red << "fatal: " << g_master_error << "\n"
+				<< termcolor::reset;
+			exitCode = 1;
+			return false;
+		}
+		if (startup()) {
+			cerr << termcolor::red << "fatal: master password not found.\n";
+			cerr << "you can try the command: \n";
+			cerr << "        psm init\n" << termcolor::reset;
+			exitCode = 1;
+			return false;
+		}
+		return true;
+	};
 
 	ListBox opts;
 	auto* list = app.add_subcommand("list", "List the data.");
@@ -108,6 +194,9 @@ int main(int argc, char** argv) {
 	list->add_flag("-j,--json", opts.output_json, "Print json.");
 	list->add_option("-s,--sort", opts.show_sort, "Sort <name>");
 	list->callback([&] {
+		if (!requireData() || !requireMaster()) {
+			return;
+		}
 		ListCommand(opts,pw_data);
 		});
 
@@ -123,6 +212,9 @@ int main(int argc, char** argv) {
 	add->add_option("-s,--set", custom_sets, "Custom parameters: key=value")
 		->expected(-1);
 	add->callback([&] {
+		if (!requireData() || !requireMaster()) {
+			return;
+		}
 		addData(name, url, key, email, custom_sets,op);
 		});
 
@@ -134,18 +226,41 @@ int main(int argc, char** argv) {
 	remove->add_flag("-v", opts_rm.rm_verbose, "show deletion process.");
 	remove->add_flag("-d", opts_rm.rm_emptyd, "password to remove empty data.");
 	remove->callback([&] {
+		if (!requireData() || !requireMaster()) {
+			return;
+		}
 		RemoveCommand(opts_rm, pw_data);
 		});
 
 
+	auto* mcp = app.add_subcommand("mcp", "Run as an MCP stdio server.");
+	mcp->callback([&] {
+		if (!requireData() || !requireMaster()) {
+			return;
+		}
+		RunMcpServer(dataFile);
+		});
+
+	auto* init = app.add_subcommand("init", "Init the master password.");
+	init->callback([&] {
+		if (!requireData()) {
+			return;
+		}
+		if (!initMasterpsm()) {
+			exitCode = 1;
+		}
+		});
+
 	bool cryptoSelfTest = false;
-	app.add_flag("--crypto-selftest", cryptoSelfTest, "运行 AES-256-GCM 自测");
+	app.add_flag("--crypto-selftest", cryptoSelfTest, "Run AES-256-GCM Testing");
 
 	CLI11_PARSE(app, argc, argv);
 
 	if (cryptoSelfTest) {
 		return RunCryptoSelfTest() ? 0 : 1;
 	}
-	SaveData(pw_data,DATA_FILE);
-	return 0;
+	if (dataLoaded) {
+		SaveData(pw_data, dataFile);
+	}
+	return exitCode;
 }

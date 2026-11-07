@@ -62,6 +62,9 @@ CMakeUserPresets.json
 /data.json
 /data.json.*
 /data.json.bak
+/masterpsm.txt
+/log.txt
+/remove.json
 /secrets.*
 
 # 系统文件

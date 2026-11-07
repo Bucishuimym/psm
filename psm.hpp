@@ -21,9 +21,12 @@
 const std::string DATA_FILE = "data.json";
 const std::string TRAN_DATA_FILE = "remove.json";
 const std::string LOG_FILE = "log.txt";
-inline std::string g_master_password = "02230ma";                              //psm启动密钥
+const std::string MASTER_FILE = "masterpsm.txt";
+inline std::string g_data_file = DATA_FILE;                                    //当前数据文件路径
+inline std::string g_master_password = "";                                     //psm启动密钥
+inline std::string g_master_error = "";                                        //主密码校验失败原因
 
-void LoadData(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE);     //加载数据
+bool LoadData(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE);     //加载数据
 void SaveData(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE);     //保存数据
 void AddData(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE);      //追加数据(txt)
 bool LoadTxt(linked::LinkedList<pwDataGroup>& trandata, const std::string& FILE);      //读取txt数据
@@ -42,6 +45,10 @@ void addData(const std::string& username,
 			 const std::vector <std::string>& custom_sets,
 			 bool op
 			);                                                                 //添加一条passwordData
+bool ReadMasterpsm();                                                          //读取并校验启动密钥
+bool ApplyMasterPasswordOverride(const std::string& password);                 //环境变量覆盖主密码
+bool initMasterpsm();                                                          //初始化启动密钥
+bool startup();                                                                //启动开关
 
 #endif // !PSM_HPP
 
