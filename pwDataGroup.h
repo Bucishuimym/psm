@@ -25,8 +25,8 @@ private:
     std::string email;
     std::string updated_at;
     std::unordered_map<std::string, std::string> custom_com;
-    bool op;
-    int uid;
+    bool op = false;
+    int uid = 0;
 public:
     pwDataGroup();
     pwDataGroup(std::string _Username, std::string _key, std::string _url,std::string _email,
