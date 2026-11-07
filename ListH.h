@@ -247,7 +247,7 @@ namespace linked {
 		while (p != nullptr) {
 			Node<T>* temp = p;
 			p = p->next;
-			delete p;
+			delete temp;
 		}
 		first->next = nullptr;
 		last = first;
