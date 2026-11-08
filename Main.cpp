@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
 	const bool dataLoaded = LoadData(pw_data, dataFile);
 	CLI::App app{ "Password mananger CLI" };
 	app.require_subcommand(1);
-	app.set_version_flag("--version", "psm 0.0.1");
+	app.set_version_flag("--version", "psm v1.0.0");
 	int exitCode = 0;
 
 	auto requireData = [&]() -> bool {
