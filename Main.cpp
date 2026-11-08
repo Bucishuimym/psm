@@ -238,7 +238,7 @@ int main(int argc, char** argv) {
 		if (!requireData() || !requireMaster()) {
 			return;
 		}
-		RunMcpServer(dataFile);
+		psm::mcp::RunMcpServer(dataFile);
 		});
 
 	auto* init = app.add_subcommand("init", "Init the master password.");
